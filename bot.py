@@ -1,49 +1,63 @@
+import asyncio
+import logging
 import os
-import telebot
-from google import genai
+from aiogram import Bot, Dispatcher, types
+from aiogram.filters import Command
+from g4f.client import Client
 
-# ሰርቨሩ ላይ የምንጭናቸውን የቴሌግራም እና የጌሚኒ ቁልፎች መውሰጃ
-BOT_TOKEN = os.environ.get('BOT_TOKEN')
-GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
+# የቴሌግራም ቦት ቶከንህ
+TELEGRAM_TOKEN = '8205927906:AAHD6GfgCFmhXQAjE6ZyV67JUHdAms28gRc'
 
-# ቦቱን እና AI ሲስተሙን ማስነሳት
-bot = telebot.TeleBot(BOT_TOKEN)
-ai_client = genai.Client(api_key=GEMINI_API_KEY)
+logging.basicConfig(level=logging.INFO)
+bot = Bot(token=TELEGRAM_TOKEN)
+dp = Dispatcher()
+ai_client = Client()
 
-@bot.message_handler(commands=['start', 'help'])
-def send_welcome(message):
-    welcome_text = (
-        "Assalamu Alaikum! Welcome to Mumin Islamic Bot. 🌍\n"
-        "Ask me any questions about Islam, and I will provide wise, humble, and trustworthy answers using authentic knowledge.\n\n"
-        "አሰላሙ አለይኩም! ወደ ሙዕሚን ኢስላማዊ ቦት በሰላም መጡ። 🌍\n"
-        "ማንኛውንም ሃይማኖታዊ ጥያቄዎችን ይጠይቁኝ፣ በጥበብ፣ በትህትና እና በታማኝነት በትክክለኛው እውቀት ላይ ተመስርቼ እመልስልዎታለሁ።\n\n"
-        "Baga gara Mumin Islamic Bot nagaadhan dhuftan. 🌍\n"
-        "Gaaffilee amantaa kamiyyuu na gaafadhaa, ani immoo ogummaa, gad-of-deebisuu fi amanamummaan bekumsa sirrii irratti hundaa'ee siif nan deebisa."
+@dp.message(Command("start", "help"))
+async def start_handler(message: types.Message):
+    welcome = (
+        "አሰላሙ አለይኩም ወራህመቱላሂ ወበረካቱህ! 🌍✨\n\n"
+        "ወደ አል-ሙዕሚን ኢስላማዊ ቦት በሰላም መጡ። ይህ ቦት ማንኛውንም ኢስላማዊ ጥያቄዎችዎን በጥልቀት ለመመለስ ዝግጁ ነው።\n\n"
+        "እባክዎ ጥያቄዎን ያካፍሉኝ።"
     )
-    bot.reply_to(message, welcome_text)
+    await message.reply(welcome)
 
-@bot.message_handler(func=lambda message: True)
-def handle_message(message):
+@dp.message()
+async def chat_handler(message: types.Message):
+    if not message.text:
+        return
+
     try:
-        # ለአለም አቀፍ ማህበረሰብ የሚሆን የ AI ረዳቱ መመሪያ (System Instruction)
-        prompt_context = (
-            "You are Mumin Islamic Bot, a wise, humble, and trustworthy Islamic AI assistant serving a global community. "
-            "Your goal is to answer the user's questions clearly, accurately, and respectfully based on proper Islamic knowledge. "
-            "Always respond beautifully and using the exact same language the user used to ask the question (Amharic, Afan Oromo, English, Arabic, etc.).\n\n"
-            f"User Question: {message.text}"
+        system_instruction = (
+            "You are Al-Mu'min Islamic Bot, a deeply compassionate and professional Islamic AI assistant.\n\n"
+            "CRITICAL RULES:\n"
+            "1. NO ARABIC FOR EVIDENCE: When providing Quran verses or Hadiths, you MUST NOT write them in Arabic text. Instead, you MUST translate and write the core meaning of the evidence completely in the user's chosen language (e.g., full Amharic translation if the user asks in Amharic). Always explicitly cite the Surah name/number, Ayah number, or Hadith collection name in that same language.\n"
+            "2. MULTILINGUAL & FLUENT: Reply 100% fluently in the exact language the user used (Amharic, Afaan Oromo, etc.).\n"
+            "3. FAST AND CONCISE: Keep your responses structurally clean, easy to read, and quick to return."
         )
         
-        # ከጌሚኒ AI መልስ መጠየቅ (በአዲሱ የ 2026 ሞዴል)
-        response = ai_client.models.generate_content(
-            model='gemini-2.5-flash',
-            contents=prompt_context,
+        response = ai_client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": system_instruction},
+                {"role": "user", "content": message.text}
+            ]
         )
         
-        bot.reply_to(message, response.text)
-    except Exception as e:
-        bot.reply_to(message, "ይቅርታ፣ አሁን ላይ መልስ ለመስጠት አልቻልኩም። እባክዎ ቆይተው ይሞክሩ። / Sorry, I cannot respond at the moment. Please try again later.")
+        answer = response.choices[0].message.content
+        if answer:
+            await message.reply(answer)
+        else:
+            await message.reply("እባክዎ ጥያቄዎን በድጋሚ ግልጽ አድርገው ይጻፉልኝ።")
+            
+    except Exception as error:
+        print(f"ስህተት: {error}")
+        await message.reply("ውድ ወንድሜ፣ ጥያቄህን ለመመለስ ጥቂት ሰከንዶች ስላለፉኝ ነው። እባክህ አሁኑኑ በድጋሚ ላክልኝ።")
 
-if __name__ == '__main__':
-    print("Mumin Islamic Bot is running successfully for the global community...")
-    bot.infinity_polling()
+async def main():
+    print("Al-Mu'min Bot is running continuously and fast on Render...")
+    await dp.start_polling(bot)
+
+if __name__ == "__main__":
+    asyncio.run(main())
     
